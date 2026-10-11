@@ -1,0 +1,8 @@
+sentence-transformers
+scikit-learn
+rapidfuzz
+pandas
+numpy
+streamlit
+groq
+python-dotenv
