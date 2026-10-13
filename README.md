@@ -2,7 +2,8 @@
 
 **Author:** Shlok Verma  
 **Assignment:** Intern Assignment — Question 2  
-**Repo:** [intern-assignment-shlok](https://github.com/Shlokverma0/intern-assignment-shlok)
+**Repo:** [intern-assignment-shlok](https://github.com/Shlokverma0/intern-assignment-shlok)  
+**Live Demo:** [intern-assignment-shlok.onrender.com/app](https://intern-assignment-shlok.onrender.com/app/)
 
 ---
 
@@ -16,6 +17,18 @@ The design uses **two independent layers**:
 2. **Independent duplicate detection** — a separate, deterministic check classifies each generated question as an exact duplicate, a semantic duplicate, or genuinely new.
 
 Layer 2 exists because prevention is never 100% reliable. LLMs occasionally ignore instructions, especially under long contexts. So rather than trusting prevention alone, we verify.
+
+---
+
+## Live Deployment
+
+The app is deployed on Render's free tier:
+
+- **Web UI:** https://intern-assignment-shlok.onrender.com/app/
+- **API docs (Swagger):** https://intern-assignment-shlok.onrender.com/docs
+- **Health check:** https://intern-assignment-shlok.onrender.com/api/health
+
+**Note:** the free tier spins down after 15 minutes of inactivity, so the first request may take 30-60 seconds while the container wakes up.
 
 ---
 
@@ -59,18 +72,19 @@ intern-assignment-shlok/
 │   ├── main.py                # FastAPI app + endpoints
 │   └── schemas.py             # Pydantic request/response models
 ├── data/
-│   └── questions.csv          # Q1-Q10 test corpus
+│   └── questions.csv          # Q1-Q10 test corpus with tags
 ├── frontend/
 │   ├── index.html             # UI markup
 │   ├── script.js              # UI logic + API calls
 │   └── style.css              # Dark theme styling
 ├── src/
 │   ├── __init__.py
-│   ├── embeddings.py          # Sentence-transformer wrapper
+│   ├── embeddings.py          # FastEmbed wrapper
 │   ├── detector.py            # Exact + semantic duplicate detection
 │   └── generator.py           # LLM question generation with avoidance
 ├── evaluate.py                # CLI: run detector over Q1-Q10, print metrics
 ├── test_generator.py          # CLI: end-to-end generate + verify
+├── render.yaml                # Render deployment config
 ├── requirements.txt
 ├── .env                       # GROQ_API_KEY (not committed)
 └── .gitignore
@@ -80,17 +94,20 @@ intern-assignment-shlok/
 
 ## Design Choices
 
-### Embeddings: `sentence-transformers` with `all-MiniLM-L6-v2`
+### Embeddings: FastEmbed with `BAAI/bge-small-en-v1.5`
 
 Alternatives considered:
 
 | Option | Why not chosen |
 |---|---|
 | OpenAI `text-embedding-3-small` | Better quality, but paid and requires internet per call |
+| `sentence-transformers` (`all-MiniLM-L6-v2`) | Good quality, but requires `torch` (~500MB RAM) |
 | Google Gemini embeddings | Free tier exists but rate limits are tight |
 | TF-IDF | Classical, but only catches word overlap, not meaning |
 
-Chosen because it's **free, local, lightweight (~80MB), CPU-friendly, and fast**. For a corpus of 10-1000 questions, the quality is more than sufficient.
+**The reason for choosing FastEmbed** is a real production constraint. The first deploy attempt on Render's free tier (512MB RAM) ran out of memory — `sentence-transformers` pulls in `torch` and its CUDA dependencies, which use roughly 500MB just to load the model.
+
+FastEmbed uses **ONNX runtime instead of torch**, so the memory footprint drops to around 200MB — comfortably within the free tier. Same model quality, different backend.
 
 ### Two-layer duplicate detection
 
@@ -109,16 +126,27 @@ A simple `q1 == q2` fails on casing and punctuation. `rapidfuzz` handles both, i
 
 Cosine similarity is the standard metric for comparing embeddings. Since embeddings are L2-normalized, it reduces to a dot product.
 
-**Threshold: 0.80**
+**Threshold: 0.87**
 
-Tuned against the Q1-Q10 corpus:
+FastEmbed's similarity scores run higher than sentence-transformers, so the threshold was re-tuned after the migration. Empirically:
 
 | Threshold | Q1 vs Q5 (should be DIFFERENT) | Q1 vs Q2 (should be DUP) | Verdict |
 |---|---|---|---|
-| 0.70 | 0.79 → DUP ❌ | 0.94 → DUP ✅ | Too many false positives |
-| **0.80** | 0.79 → DIFF ✅ | 0.94 → DUP ✅ | **Best** |
-| 0.90 | 0.79 → DIFF ✅ | 0.94 → DUP ✅ | Misses the Q8 case |
-| 0.95 | 0.79 → DIFF ✅ | 0.94 → DIFF ❌ | False negatives |
+| 0.80 | 0.84 → DUP ❌ | 0.95 → DUP ✅ | Too many false positives |
+| **0.87** | 0.84 → DIFF ✅ | 0.95 → DUP ✅ | **Best** |
+| 0.92 | 0.84 → DIFF ✅ | 0.95 → DUP ✅ | Misses the Q8 case |
+
+All similarity scores are returned as **percentages (0-100)** for consistency with the exact match score.
+
+### Tags and metadata
+
+Each question in the corpus carries a `tags` field with key-value pairs (e.g. `topic:optics`, `difficulty:easy`, `type:definition`).
+
+**Key design decision:** tags are deliberately excluded from duplicate detection. The detector compares questions purely on content — exact wording and semantic meaning — regardless of tags.
+
+This is intentional. Two questions with different tags can still be duplicates ("What is reflection?" vs "What is reflection of light?"), and two questions with identical tags can be completely different ("State the laws of reflection" vs "What is the angle of reflection?"). Tags are for organizational purposes only.
+
+New tag keys and values can be introduced at any time — no schema change is required, because tags are stored as a raw string field.
 
 ### Context selection: KMeans
 
@@ -174,7 +202,7 @@ python test_generator.py    # End-to-end generate + verify
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/health` | Health check |
-| GET | `/api/corpus` | Return the Q1-Q10 corpus |
+| GET | `/api/corpus` | Return the Q1-Q10 corpus with tags |
 | POST | `/api/generate` | Generate a new question and verify it against the corpus |
 | POST | `/api/detect` | Classify a pair of questions |
 | POST | `/api/evaluate` | Run detector on Q1 vs all and return metrics |
@@ -193,7 +221,7 @@ Response:
 {
   "label": "SEMANTIC_DUPLICATE",
   "exact_score": 73.68,
-  "semantic_score": 0.9416
+  "semantic_score": 94.66
 }
 ```
 
@@ -223,18 +251,18 @@ The assignment provided 10 questions on "reflection of light":
 ### Detector evaluation (Q1 vs all)
 
 ```
-Q1 vs Q2   | SEMANTIC_DUPLICATE   | exact= 73.68 | sem=0.9416
-Q1 vs Q3   | SEMANTIC_DUPLICATE   | exact= 68.42 | sem=0.9034
-Q1 vs Q4   | SEMANTIC_DUPLICATE   | exact= 48.48 | sem=0.9290
-Q1 vs Q5   | DIFFERENT            | exact= 75.00 | sem=0.7906
-Q1 vs Q6   | DIFFERENT            | exact= 62.07 | sem=0.7051
-Q1 vs Q7   | DIFFERENT            | exact= 37.89 | sem=0.5405
-Q1 vs Q8   | SEMANTIC_DUPLICATE   | exact= 80.00 | sem=0.8638  (ambiguous)
-Q1 vs Q9   | DIFFERENT            | exact= 43.18 | sem=0.6626
-Q1 vs Q10  | SEMANTIC_DUPLICATE   | exact= 73.68 | sem=0.9416
+Q1 vs Q2   | SEMANTIC_DUPLICATE   | exact= 73.68 | sem= 94.66%
+Q1 vs Q3   | SEMANTIC_DUPLICATE   | exact= 68.42 | sem= 90.80%
+Q1 vs Q4   | SEMANTIC_DUPLICATE   | exact= 48.48 | sem= 94.26%
+Q1 vs Q5   | DIFFERENT            | exact= 75.00 | sem= 83.89%
+Q1 vs Q6   | DIFFERENT            | exact= 62.07 | sem= 83.00%
+Q1 vs Q7   | DIFFERENT            | exact= 37.89 | sem= 73.19%
+Q1 vs Q8   | SEMANTIC_DUPLICATE   | exact= 80.00 | sem= 87.02%  (ambiguous)
+Q1 vs Q9   | DIFFERENT            | exact= 43.18 | sem= 75.78%
+Q1 vs Q10  | SEMANTIC_DUPLICATE   | exact= 73.68 | sem= 94.66%
 
-Q2 vs Q10  | EXACT_DUPLICATE      | exact=100.00 | sem=1.0000
-Q5 vs Q9   | DIFFERENT            | exact= 44.90 | sem=0.5359
+Q2 vs Q10  | EXACT_DUPLICATE      | exact=100.00 | sem=100.00%
+Q5 vs Q9   | DIFFERENT            | exact= 44.90 | sem= 69.09%
 ```
 
 ### Aggregate metrics (Q1 vs all, Q8 excluded as ambiguous)
@@ -286,7 +314,7 @@ A post-generation topic classifier or a stricter few-shot prompt would tighten t
 
 ### 2. Q8 is genuinely ambiguous
 
-"What is reflection?" could refer to optical reflection or reflection in general. The model classified it as a semantic duplicate of Q1 with score 0.8638. This is defensible, but the assignment explicitly flagged it as ambiguous, so Q8 is excluded from metrics.
+"What is reflection?" could refer to optical reflection or reflection in general. The model classified it as a semantic duplicate of Q1 with score 87.02%. This is defensible, but the assignment explicitly flagged it as ambiguous, so Q8 is excluded from metrics.
 
 ### 3. Small evaluation set
 
@@ -294,11 +322,11 @@ The metrics are computed on 10 questions. Real deployments have hundreds or thou
 
 ### 4. Threshold tuning
 
-The 0.80 semantic threshold was tuned on this specific corpus. A different domain (code questions, math problems) might need a different threshold. A production system would re-tune periodically or use an adaptive approach.
+The 0.87 semantic threshold was tuned on this specific corpus with FastEmbed. A different embedding model or domain would need re-tuning. A production system would re-tune periodically or use an adaptive approach.
 
-### 5. Cost trade-off
+### 5. Deployment memory constraint
 
-Local embeddings are free but slower than API embeddings on large batches. For 10-100 questions this doesn't matter. At 10,000+, batched API calls or a vector database (FAISS, Pinecone) would be needed for sublinear search.
+The switch to FastEmbed was forced by a real constraint — Render's 512MB free tier. In a paid environment with more memory, `sentence-transformers` would remain a valid choice and would only require re-tuning the semantic threshold back to ~0.80.
 
 ---
 
@@ -308,7 +336,7 @@ Local embeddings are free but slower than API embeddings on large batches. For 1
 - Few-shot prompt engineering to reduce topic drift
 - A larger evaluation set pulled from real question banks
 - A topic-adherence classifier to flag drift
-- Caching corpus embeddings to disk so restarts are instant
+- Caching corpus embeddings to disk so cold starts are instant
 - Dockerfile for one-command deployment
 - CI to run the evaluation on every commit
 
@@ -316,14 +344,15 @@ Local embeddings are free but slower than API embeddings on large batches. For 1
 
 ## Stack
 
-- **Python 3.14**
+- **Python 3.11** (deployed on Render) / **3.14** (local dev)
 - `fastapi`, `uvicorn`, `pydantic` — backend API
-- `sentence-transformers` — embeddings
+- `fastembed` — embeddings (ONNX runtime, no torch)
 - `scikit-learn` — KMeans clustering, metrics
 - `rapidfuzz` — fuzzy string matching
 - `groq` — LLM API client
 - `pandas`, `numpy` — data handling
 - Vanilla **HTML / CSS / JavaScript** — frontend (no framework, no build step)
+- **Render** — deployment platform
 
 ---
 
