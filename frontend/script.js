@@ -31,13 +31,15 @@ function labelClass(label) {
 }
 
 function scoreClass(value, kind) {
+    // value is on a 0-100 scale for both "exact" and "semantic"
     if (kind === "exact") {
         if (value >= 90) return "high";
         if (value >= 60) return "mid";
         return "low";
     }
-    if (value >= 0.8) return "high";
-    if (value >= 0.6) return "mid";
+    // semantic (percentage)
+    if (value >= 87) return "high";
+    if (value >= 60) return "mid";
     return "low";
 }
 
@@ -113,7 +115,7 @@ function renderComparisons(rows) {
                     <td>${escapeHtml(r.existing_question)}</td>
                     <td><span class="label ${cls}">${escapeHtml(r.label)}</span></td>
                     <td><span class="score ${exactCls}">${r.exact_score.toFixed(2)}</span></td>
-                    <td><span class="score ${semCls}">${Math.round(r.semantic_score * 100)}%</span></td>
+                    <td><span class="score ${semCls}">${r.semantic_score.toFixed(2)}%</span></td>
                 </tr>
             `;
         })
@@ -204,7 +206,7 @@ function renderEvaluationRows(rows) {
                     <td>${escapeHtml(r.question)}</td>
                     <td>${escapeHtml(r.expected)}</td>
                     <td><span class="label ${cls}">${escapeHtml(r.detector_says)}</span></td>
-                    <td><span class="score ${semCls}">${Math.round(r.semantic_score * 100)}%</span></td>
+                    <td><span class="score ${semCls}">${r.semantic_score.toFixed(2)}%</span></td>
                 </tr>
             `;
         })
@@ -270,13 +272,13 @@ async function onCompare() {
         $("compareQA").textContent = qA;
         $("compareQB").textContent = qB;
 
-        // Scores — exact as-is (0-100), semantic as percentage
+        // Scores — both returned as 0-100 by the backend
         $("compareExact").textContent = data.exact_score.toFixed(2);
-        $("compareSemantic").textContent = Math.round(data.semantic_score * 100) + "%";
+        $("compareSemantic").textContent = data.semantic_score.toFixed(2) + "%";
 
         // Progress bars
         const exactPct = Math.min(data.exact_score, 100);
-        const semPct = Math.min(data.semantic_score * 100, 100);
+        const semPct = Math.min(data.semantic_score, 100);
 
         requestAnimationFrame(() => {
             $("compareExactBar").style.width = exactPct + "%";

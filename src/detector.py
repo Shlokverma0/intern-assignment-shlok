@@ -27,10 +27,11 @@ from typing import Tuple
 import numpy as np
 from rapidfuzz import fuzz
 
-# Thresholds were tuned empirically on the Q1-Q10 test corpus.
-# See README for the threshold comparison table.
+# Thresholds tuned empirically on the Q1-Q10 test corpus with FastEmbed.
+# FastEmbed's similarity scores run higher than sentence-transformers, so
+# the semantic threshold is set higher (0.87) to keep precision high.
 EXACT_THRESHOLD = 90.0
-SEMANTIC_THRESHOLD = 0.80
+SEMANTIC_THRESHOLD = 0.87
 
 
 def _normalize(text: str) -> str:
@@ -113,8 +114,8 @@ def classify(
 
     Returns a dict with keys:
         - label: "EXACT_DUPLICATE" | "SEMANTIC_DUPLICATE" | "DIFFERENT"
-        - exact_score: float
-        - semantic_score: float
+        - exact_score: float (0-100)
+        - semantic_score: float (0-100, percentage)
     """
     exact_hit, exact_score = is_exact_duplicate(q1, q2)
     semantic_hit, semantic_score = is_semantic_duplicate(emb1, emb2)
@@ -129,5 +130,5 @@ def classify(
     return {
         "label": label,
         "exact_score": round(exact_score, 2),
-        "semantic_score": round(semantic_score, 4),
+        "semantic_score": round(semantic_score * 100, 2),
     }

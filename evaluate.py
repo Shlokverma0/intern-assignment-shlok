@@ -41,7 +41,7 @@ def run_q1_vs_all(df: pd.DataFrame, embeddings) -> None:
         result = classify(q1_text, df.iloc[i]["question"], q1_emb, embeddings[i])
         print(
             f"Q1 vs {df.iloc[i]['id']:4s} | {result['label']:20s} | "
-            f"exact={result['exact_score']:6.2f} | sem={result['semantic_score']:.4f} | "
+            f"exact={result['exact_score']:6.2f} | sem={result['semantic_score']:6.2f}% | "
             f"{df.iloc[i]['question']}"
         )
 
@@ -62,8 +62,8 @@ def run_explicit_checks(df: pd.DataFrame, embeddings) -> None:
         embeddings[idx["Q10"]],
     )
     print(
-        f"Q2 vs Q10 | {r['label']:20s} | exact={r['exact_score']:.2f} | "
-        f"sem={r['semantic_score']:.4f}  (expected: EXACT_DUPLICATE)"
+        f"Q2 vs Q10 | {r['label']:20s} | exact={r['exact_score']:6.2f} | "
+        f"sem={r['semantic_score']:6.2f}%  (expected: EXACT_DUPLICATE)"
     )
 
     # Q5 vs Q9 - both different concepts, should be DIFFERENT.
@@ -74,8 +74,8 @@ def run_explicit_checks(df: pd.DataFrame, embeddings) -> None:
         embeddings[idx["Q9"]],
     )
     print(
-        f"Q5 vs Q9  | {r['label']:20s} | exact={r['exact_score']:.2f} | "
-        f"sem={r['semantic_score']:.4f}  (expected: DIFFERENT)"
+        f"Q5 vs Q9  | {r['label']:20s} | exact={r['exact_score']:6.2f} | "
+        f"sem={r['semantic_score']:6.2f}%  (expected: DIFFERENT)"
     )
 
 
