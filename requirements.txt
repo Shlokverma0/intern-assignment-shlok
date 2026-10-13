@@ -1,8 +1,18 @@
+# Core ML / NLP
 sentence-transformers
 scikit-learn
 rapidfuzz
-pandas
 numpy
-streamlit
+pandas
+
+# LLM
 groq
 python-dotenv
+
+# Backend API
+fastapi
+uvicorn[standard]
+pydantic
+
+# Optional (dev only)
+streamlit
