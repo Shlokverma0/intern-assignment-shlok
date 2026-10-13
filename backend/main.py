@@ -241,3 +241,14 @@ def evaluate() -> EvaluationResponse:
 # Mount the frontend directory at /app so index.html is served there.
 if FRONTEND_DIR.exists():
     app.mount("/app", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+
+# ---------------------------------------------------------------------------
+# Local dev entry point (Render/Heroku-like platforms use PORT env var)
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    import os
+    import uvicorn
+
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=port)

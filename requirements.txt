@@ -13,6 +13,4 @@ python-dotenv
 fastapi
 uvicorn[standard]
 pydantic
-
-# Optional (dev only)
-streamlit
+gunicorn
