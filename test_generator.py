@@ -1,57 +1,77 @@
-# Ye script generator ko test karti hai.
-# Q1-Q10 ko existing maan kar ek naya question generate karta hai,
-# phir detector se check karta hai ki wo duplicate hai ya nahi.
+"""
+End-to-end test for the generation pipeline.
+
+Flow:
+    1. Load the existing question corpus and compute embeddings.
+    2. Select a diverse context (top-k questions) for the LLM.
+    3. Generate a new question with generation-time avoidance.
+    4. Verify the generated question against the corpus using the detector.
+
+The final line reports whether the avoidance mechanism worked for this run.
+Note that generation is non-deterministic (temperature=0.9), so repeated runs
+may produce different questions.
+"""
+
+from __future__ import annotations
 
 import pandas as pd
-from src.embeddings import embed_many, embed_one
+
 from src.detector import classify
-from src.generator import generate_question, pick_diverse_questions
+from src.embeddings import embed_batch, embed_text
+from src.generator import generate_question, select_diverse_context
+
+TOPIC = "reflection of light"
+CONTEXT_SIZE = 5
 
 
-def main():
+def _hr(width: int = 75) -> None:
+    print("=" * width)
+
+
+def main() -> None:
     df = pd.read_csv("data/questions.csv")
-    print(f"{len(df)} existing questions mile\n")
+    print(f"\nLoaded {len(df)} existing questions\n")
 
-    print("Embeddings bana rahe hain...")
-    embs = embed_many(df["question"].tolist())
+    print("Generating embeddings...")
+    embeddings = embed_batch(df["question"].tolist())
     print("Done.\n")
 
-    # Context ke liye diverse questions pick karo
-    context = pick_diverse_questions(df, embs, k=5)
-    print("LLM ko ye 5 questions context mein bhej rahe hain:")
+    # --- Step 1: pick diverse context for the LLM ---
+    context = select_diverse_context(df, embeddings, k=CONTEXT_SIZE)
+    print(f"Sending {len(context)} context questions to the LLM:")
     for q in context:
         print(f"  - {q}")
     print()
 
-    # Naya question generate karo
-    print("Groq se naya question generate kar rahe hain...")
-    new_q = generate_question("reflection of light", context)
-    print(f"\nNaya question: \"{new_q}\"\n")
+    # --- Step 2: generate a new question ---
+    print("Generating new question via Groq...")
+    new_question = generate_question(TOPIC, context)
+    print(f'\nGenerated question: "{new_question}"\n')
 
-    # Detector se check karo ki ye duplicate hai ya nahi
-    print("Ab detector se check kar rahe hain ki ye duplicate hai ya nahi...")
-    new_emb = embed_one(new_q)
+    # --- Step 3: verify against corpus ---
+    print("Verifying against existing corpus...")
+    new_emb = embed_text(new_question)
 
-    print("\n" + "=" * 75)
-    print("New question vs existing corpus:")
-    print("=" * 75)
+    _hr()
+    print("New question vs existing corpus")
+    _hr()
 
-    is_dup = False
+    is_duplicate = False
     for i in range(len(df)):
-        res = classify(new_q, df.iloc[i]["question"], new_emb, embs[i])
-        marker = " <-- DUP!" if res["label"] != "DIFFERENT" else ""
+        result = classify(new_question, df.iloc[i]["question"], new_emb, embeddings[i])
+        marker = "  <-- DUPLICATE" if result["label"] != "DIFFERENT" else ""
         print(
-            f"vs {df.iloc[i]['id']:4s} | {res['label']:20s} | "
-            f"sem={res['semantic_score']:.4f} | {df.iloc[i]['question']}{marker}"
+            f"vs {df.iloc[i]['id']:4s} | {result['label']:20s} | "
+            f"sem={result['semantic_score']:.4f} | {df.iloc[i]['question']}{marker}"
         )
-        if res["label"] != "DIFFERENT":
-            is_dup = True
+        if result["label"] != "DIFFERENT":
+            is_duplicate = True
 
-    print("\n" + "=" * 75)
-    if is_dup:
-        print("RESULT: Generated question DUPLICATE hai - avoid mechanism fail hui")
+    _hr()
+    if is_duplicate:
+        print("RESULT: Generated question is a DUPLICATE — avoidance mechanism failed")
     else:
-        print("RESULT: Generated question NAYA hai - avoid mechanism kaam kiya")
+        print("RESULT: Generated question is NEW — avoidance mechanism worked")
 
 
 if __name__ == "__main__":

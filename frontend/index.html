@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Question Generator · Duplicate Prevention</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <header class="app-header">
+        <div class="container header-inner">
+            <div class="brand">
+                <div class="brand-icon">Q</div>
+                <div>
+                    <h1>AI Question Generator</h1>
+                    <p class="brand-sub">Generation-time avoidance &amp; independent duplicate detection</p>
+                </div>
+            </div>
+            <div class="status-badge" id="apiStatus">
+                <span class="status-dot"></span>
+                <span id="apiStatusText">Checking API…</span>
+            </div>
+        </div>
+    </header>
+
+    <nav class="container nav">
+        <button class="nav-btn active" data-tab="generate">
+            <span class="nav-icon">✨</span> Generate
+        </button>
+        <button class="nav-btn" data-tab="evaluate">
+            <span class="nav-icon">📊</span> Evaluate
+        </button>
+        <button class="nav-btn" data-tab="compare">
+            <span class="nav-icon">🔍</span> Compare
+        </button>
+    </nav>
+
+    <main class="container">
+        <!-- TAB: GENERATE -->
+        <section class="tab-panel active" id="tab-generate">
+            <div class="card">
+                <h2>Generate a new question</h2>
+                <p class="muted">
+                    The LLM generates a new question while being steered away from existing
+                    questions. The result is then verified by the independent detector.
+                </p>
+
+                <div class="form-row">
+                    <label for="topicInput">Topic</label>
+                    <input id="topicInput" type="text" placeholder="e.g. reflection of light" value="reflection of light" />
+                </div>
+
+                <div class="form-row">
+                    <label for="contextSizeInput">
+                        Context size <span class="muted" id="contextHint">(diverse questions sent to the LLM)</span>
+                    </label>
+                    <input id="contextSizeInput" type="range" min="1" max="10" value="5"
+                           oninput="document.getElementById('contextSizeValue').textContent = this.value" />
+                    <span class="range-value" id="contextSizeValue">5</span>
+                </div>
+
+                <button class="btn btn-primary" id="generateBtn">
+                    <span class="btn-label">Generate question</span>
+                    <span class="spinner" hidden></span>
+                </button>
+            </div>
+
+            <div id="generateResult" class="result-hidden">
+                <div class="card">
+                    <h3>Generated question</h3>
+                    <blockquote class="generated-q" id="generatedQuestion"></blockquote>
+                    <div class="verdict" id="generateVerdict"></div>
+                </div>
+
+                <div class="card">
+                    <h3>Context sent to the LLM</h3>
+                    <ul class="context-list" id="contextList"></ul>
+                </div>
+
+                <div class="card">
+                    <h3>Detection against the corpus</h3>
+                    <div class="table-wrap">
+                        <table class="data-table" id="comparisonTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Existing question</th>
+                                    <th>Label</th>
+                                    <th>Exact</th>
+                                    <th>Semantic</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: EVALUATE -->
+        <section class="tab-panel" id="tab-evaluate">
+            <div class="card">
+                <h2>Evaluation on Q1–Q10</h2>
+                <p class="muted">
+                    Runs the detector on Q1 vs every other question and reports per-pair
+                    verdicts and aggregate metrics. Q8 is excluded from metrics as it is
+                    marked ambiguous in the assignment.
+                </p>
+                <button class="btn btn-primary" id="evaluateBtn">
+                    <span class="btn-label">Run evaluation</span>
+                    <span class="spinner" hidden></span>
+                </button>
+            </div>
+
+            <div id="evaluateResult" class="result-hidden">
+                <div class="metric-grid" id="metricGrid"></div>
+
+                <div class="card">
+                    <h3>Per-pair results</h3>
+                    <div class="table-wrap">
+                        <table class="data-table" id="evalTable">
+                            <thead>
+                                <tr>
+                                    <th>Comparison</th>
+                                    <th>Question</th>
+                                    <th>Expected</th>
+                                    <th>Detector</th>
+                                    <th>Semantic</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: COMPARE -->
+        <section class="tab-panel" id="tab-compare">
+            <div class="card">
+                <h2>Compare two questions</h2>
+                <p class="muted">
+                    Quick sanity check. Enter two questions and see how the detector
+                    classifies the pair.
+                </p>
+
+                <div class="form-row">
+                    <label for="qA">Question A</label>
+                    <input id="qA" type="text" value="What is reflection of light?" />
+                </div>
+
+                <div class="form-row">
+                    <label for="qB">Question B</label>
+                    <input id="qB" type="text" value="Define the reflection of light." />
+                </div>
+
+                <button class="btn btn-primary" id="compareBtn">
+                    <span class="btn-label">Compare</span>
+                    <span class="spinner" hidden></span>
+                </button>
+            </div>
+
+            <div id="compareResult" class="result-hidden">
+                <div class="card compare-banner">
+                    <div class="verdict-big" id="compareLabel"></div>
+                    <p class="compare-interpretation" id="compareInterpretation"></p>
+                </div>
+
+                <div class="card">
+                    <h3>Questions compared</h3>
+                    <div class="question-pair">
+                        <div class="question-box">
+                            <div class="question-tag">Question A</div>
+                            <div class="question-text" id="compareQA"></div>
+                        </div>
+                        <div class="question-box">
+                            <div class="question-tag">Question B</div>
+                            <div class="question-text" id="compareQB"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Similarity scores</h3>
+
+                    <div class="score-block">
+                        <div class="score-header">
+                            <span class="score-name">Exact score</span>
+                            <span class="score-num" id="compareExact">—</span>
+                        </div>
+                        <div class="score-bar">
+                            <div class="score-fill exact-fill" id="compareExactBar"></div>
+                        </div>
+                        <div class="score-note">Higher = more identical wording (threshold: 90)</div>
+                    </div>
+
+                    <div class="score-block">
+                        <div class="score-header">
+                            <span class="score-name">Semantic score</span>
+                            <span class="score-num" id="compareSemantic">—</span>
+                        </div>
+                        <div class="score-bar">
+                            <div class="score-fill semantic-fill" id="compareSemanticBar"></div>
+                        </div>
+                        <div class="score-note">Higher = more similar meaning (threshold: 80%)</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="container app-footer">
+        <p>Built by <strong>Shlok Verma</strong> · TGC-track · <a href="https://github.com/Shlokverma0/intern-assignment-shlok" target="_blank">View on GitHub</a></p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

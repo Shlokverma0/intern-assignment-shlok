@@ -1,31 +1,62 @@
-# Text ko vector mein convert karne ke liye sentence-transformers use kar rahe hain.
-# Kai options the - OpenAI (paid), Gemini (rate limit), TF-IDF (semantic nahi samajhta).
+"""
+Text embedding module.
 
-from sentence_transformers import SentenceTransformer
+Uses sentence-transformers to convert text into dense vector representations.
+The model is loaded lazily and cached in memory for repeated use within the
+same process.
+
+Model choice: all-MiniLM-L6-v2
+    - Lightweight (~80MB), runs on CPU without GPU
+    - Fast inference (sub-second for small batches)
+    - Good semantic similarity quality for the task
+    - Free and fully local (no API calls)
+"""
+
+from __future__ import annotations
+
+from typing import List
+
 import numpy as np
+from sentence_transformers import SentenceTransformer
 
 MODEL_NAME = "all-MiniLM-L6-v2"
 
-# Model ko lazy load kar rahe hain - pehli baar import pe load karega,
-# taaki test karte waqt baar baar load na ho. Ek hi baar memory mein rehta hai.
-_model = None
+# Model is loaded once and reused across calls to avoid repeated disk I/O.
+_model: SentenceTransformer | None = None
 
 
-def _load_model():
+def _load_model() -> SentenceTransformer:
+    """Load the sentence-transformer model lazily."""
     global _model
     if _model is None:
-        print(f"Loading {MODEL_NAME}... (pehli baar 1-2 min lag sakta hai)")
+        print(f"Loading embedding model: {MODEL_NAME}")
         _model = SentenceTransformer(MODEL_NAME)
     return _model
 
 
-def embed_one(text):
-    # Ek single text ka embedding
+def embed_text(text: str) -> np.ndarray:
+    """
+    Embed a single text string.
+
+    Args:
+        text: Input text.
+
+    Returns:
+        Normalized embedding vector of shape (384,).
+    """
     model = _load_model()
     return model.encode(text, normalize_embeddings=True)
 
 
-def embed_many(texts):
-    # Batch mein embeddings - faster hai single se, especially 10+ texts ke liye
+def embed_batch(texts: List[str]) -> np.ndarray:
+    """
+    Embed a list of texts in a single batched call.
+
+    Args:
+        texts: List of input texts.
+
+    Returns:
+        Array of shape (n_texts, 384), each row L2-normalized.
+    """
     model = _load_model()
     return model.encode(texts, normalize_embeddings=True, batch_size=32)

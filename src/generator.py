@@ -1,78 +1,126 @@
-# LLM se naya question generate karne ke liye Groq use kar rahe hain.
-# Generation ke waqt hum existing questions LLM ko dikhate hain taaki wo
-# wahi questions dobara na banaye. Ye "generation-time avoidance" hai.
+"""
+LLM-based question generation with duplicate avoidance.
+
+Two responsibilities:
+
+    1. Context selection - pick a small, diverse subset of existing
+       questions to send to the LLM without exceeding its context window.
+       KMeans clustering is used so the selected questions cover different
+       concepts rather than being near-duplicates of each other.
+
+    2. Generation with avoidance - prompt the LLM to produce a new question
+       that is conceptually different from the ones provided.
+
+Note: This handles generation-time avoidance only. A separate detector
+(see detector.py) verifies the result independently.
+"""
+
+from __future__ import annotations
 
 import os
+from typing import List
+
+import numpy as np
+import pandas as pd
 from dotenv import load_dotenv
 from groq import Groq
 from sklearn.cluster import KMeans
-import numpy as np
 
 load_dotenv()
 
-_client = None
+# Model choice notes:
+#   Groq decommissioned llama-3.1-70b-versatile and llama-3.3-70b-versatile.
+#   Current recommendation from Groq's deprecation page is openai/gpt-oss-120b.
+LLM_MODEL = "openai/gpt-oss-120b"
+LLM_TEMPERATURE = 0.9
+
+_client: Groq | None = None
 
 
-def _get_client():
+def _get_client() -> Groq:
+    """Return a cached Groq client, initializing it on first use."""
     global _client
     if _client is None:
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             raise ValueError(
-                "GROQ_API_KEY nahi mili. .env file check kar - GROQ_API_KEY=gsk_... hona chahiye"
+                "GROQ_API_KEY not found. Ensure a .env file exists with "
+                "GROQ_API_KEY=your_key_here"
             )
         _client = Groq(api_key=api_key)
     return _client
 
 
-def pick_diverse_questions(df, embeddings, k=5):
-    # Saare questions LLM ko nahi bhej sakte - context limit hai.
-    # Random 5 pick karein to ho sakta hai 5 same concept ke ho.
-    # Isliye KMeans clustering karke har cluster se ek pick kar rahe hain -
-    # isse diverse set milta hai (different concepts cover ho jate hain).
+def select_diverse_context(
+    df: pd.DataFrame,
+    embeddings: np.ndarray,
+    k: int = 5,
+) -> List[str]:
+    """
+    Select k diverse questions from the corpus to use as LLM context.
+
+    Strategy: cluster embeddings with KMeans, then pick one representative
+    from each cluster. This avoids sending near-duplicate questions to the
+    LLM (which would waste context and reduce the diversity of guidance).
+
+    Args:
+        df: DataFrame with a 'question' column.
+        embeddings: Array of shape (n_questions, embedding_dim).
+        k: Number of questions to select.
+
+    Returns:
+        List of selected question strings.
+    """
     n = min(k, len(df))
     if n == 0:
         return []
-
-    # Agar sirf 1-2 questions hain to clustering ka matlab nahi
     if len(df) <= k:
         return df["question"].tolist()
 
     kmeans = KMeans(n_clusters=n, random_state=42, n_init=10)
     labels = kmeans.fit_predict(embeddings)
 
-    picked = []
+    picked: List[str] = []
     for cluster_id in range(n):
-        idx = np.where(labels == cluster_id)[0][0]
+        idx = int(np.where(labels == cluster_id)[0][0])
         picked.append(df.iloc[idx]["question"])
     return picked
 
 
-def generate_question(topic, existing_questions):
-    # Prompt mein existing questions daal rahe hain, aur explicitly bol rahe hain
-    # inko avoid karo. Ye simplest form of generation-time avoidance hai.
+def generate_question(topic: str, existing_questions: List[str]) -> str:
+    """
+    Generate a single new question on `topic` while steering away from
+    the questions in `existing_questions`.
 
+    Args:
+        topic: Topic string (e.g. "reflection of light").
+        existing_questions: List of questions to avoid duplicating.
+
+    Returns:
+        The generated question as a plain string.
+    """
     existing_block = "\n".join(f"- {q}" for q in existing_questions)
 
-    prompt = f"""You are helping build a question bank on the topic: "{topic}".
+    prompt = f"""You are building a question bank on the topic: "{topic}".
 
-The following questions already exist. Do NOT create anything that is a duplicate
-of these - neither exact wording nor same meaning in different words:
+The following questions already exist. Do NOT produce anything that is
+a duplicate of these — neither identical wording nor the same meaning
+expressed differently:
 
 {existing_block}
 
-Now generate ONE new question on the same topic that covers a DIFFERENT concept
-or angle than all of the above.
+Generate ONE new question on the same topic that covers a DIFFERENT
+concept or angle than every question listed above.
 
 Rules:
-- Standalone and clear
+- Standalone and clearly worded
 - Not a paraphrase of any existing question
-- Return ONLY the question text, nothing else - no numbering, no quotes, no explanation"""
+- Return ONLY the question text. No numbering, no quotes, no explanation."""
 
     client = _get_client()
     response = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
+        model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.9,  # thoda creative rakha taaki variety aaye
+        temperature=LLM_TEMPERATURE,
     )
     return response.choices[0].message.content.strip()
