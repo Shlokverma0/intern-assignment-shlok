@@ -1,5 +1,5 @@
-# Core ML / NLP
-sentence-transformers
+# Core ML / NLP (lightweight — no torch)
+fastembed
 scikit-learn
 rapidfuzz
 numpy
