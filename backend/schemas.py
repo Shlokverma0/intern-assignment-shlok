@@ -25,6 +25,7 @@ class ComparisonRow(BaseModel):
 
     existing_id: str
     existing_question: str
+    tags: Optional[str] = None
     label: str
     exact_score: float
     semantic_score: float
@@ -59,6 +60,7 @@ class CorpusItem(BaseModel):
 
     id: str
     question: str
+    tags: Optional[str] = None
     expected: Optional[str] = None
 
 
@@ -67,6 +69,7 @@ class EvaluationRow(BaseModel):
 
     comparison: str
     question: str
+    tags: Optional[str] = None
     expected: str
     detector_says: str
     semantic_score: float

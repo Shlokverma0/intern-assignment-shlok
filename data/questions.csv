@@ -1,11 +1,11 @@
-id,question,expected
-Q1,What is reflection of light?,Original
-Q2,Define the reflection of light.,Semantic duplicate of Q1
-Q3,What do you understand by the reflection of light?,Semantic duplicate of Q1
-Q4,Explain the meaning of light reflection.,Semantic duplicate of Q1
-Q5,State the laws of reflection of light.,Different question
-Q6,What is the angle of reflection?,Different question
-Q7,"The angle of incidence is 30 degrees. What is the angle of reflection?",Different question
-Q8,What is reflection?,Potentially ambiguous
-Q9,What is the difference between regular and diffuse reflection?,Different question
-Q10,Define the reflection of light.,Exact duplicate of Q2
+id,question,tags,expected
+Q1,What is reflection of light?,"topic:optics,difficulty:easy,type:definition",Original
+Q2,Define the reflection of light.,"topic:optics,difficulty:easy,type:definition",Semantic duplicate of Q1
+Q3,What do you understand by the reflection of light?,"topic:optics,difficulty:easy,type:conceptual",Semantic duplicate of Q1
+Q4,Explain the meaning of light reflection.,"topic:optics,difficulty:medium,type:conceptual",Semantic duplicate of Q1
+Q5,State the laws of reflection of light.,"topic:optics,difficulty:medium,type:laws",Different question
+Q6,What is the angle of reflection?,"topic:optics,difficulty:easy,type:definition",Different question
+Q7,"The angle of incidence is 30 degrees. What is the angle of reflection?","topic:optics,difficulty:medium,type:numerical",Different question
+Q8,What is reflection?,"topic:optics,difficulty:easy,type:definition",Potentially ambiguous
+Q9,What is the difference between regular and diffuse reflection?,"topic:optics,difficulty:medium,type:comparison",Different question
+Q10,Define the reflection of light.,"topic:optics,difficulty:easy,type:definition",Exact duplicate of Q2

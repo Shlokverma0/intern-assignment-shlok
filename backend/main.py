@@ -47,7 +47,7 @@ CORPUS_PATH = ROOT / "data" / "questions.csv"
 FRONTEND_DIR = ROOT / "frontend"
 
 DUPLICATE_IDS = {"Q2", "Q3", "Q4", "Q10"}
-SKIP_IDS = {"Q8"}  # Q8 is marked ambiguous in the assignment
+SKIP_IDS = {"Q8"}
 
 
 # ---------------------------------------------------------------------------
@@ -61,8 +61,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allow the static frontend (served from the same app) and any local
-# development origin to call the API.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -114,7 +112,12 @@ def get_corpus() -> list[CorpusItem]:
     """Return the Q1-Q10 test corpus."""
     df = _get_corpus()
     return [
-        CorpusItem(id=row["id"], question=row["question"], expected=row.get("expected"))
+        CorpusItem(
+            id=row["id"],
+            question=row["question"],
+            tags=row.get("tags"),
+            expected=row.get("expected"),
+        )
         for _, row in df.iterrows()
     ]
 
@@ -128,16 +131,13 @@ def generate(req: GenerateRequest) -> GenerateResponse:
     df = _get_corpus()
     embs = _get_embeddings()
 
-    # 1. Select a diverse context to send to the LLM.
     context = select_diverse_context(df, embs, k=req.context_size)
 
-    # 2. Generate a new question.
     try:
         new_question = generate_question(req.topic, context)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Generation failed: {exc}") from exc
 
-    # 3. Verify against every existing question.
     new_emb = embed_text(new_question)
     comparisons: list[ComparisonRow] = []
     is_dup = False
@@ -148,6 +148,7 @@ def generate(req: GenerateRequest) -> GenerateResponse:
             ComparisonRow(
                 existing_id=df.iloc[i]["id"],
                 existing_question=df.iloc[i]["question"],
+                tags=df.iloc[i].get("tags"),
                 label=result["label"],
                 exact_score=result["exact_score"],
                 semantic_score=result["semantic_score"],
@@ -194,6 +195,7 @@ def evaluate() -> EvaluationResponse:
             EvaluationRow(
                 comparison=f"Q1 vs {df.iloc[i]['id']}",
                 question=df.iloc[i]["question"],
+                tags=df.iloc[i].get("tags"),
                 expected=df.iloc[i].get("expected", ""),
                 detector_says=result["label"],
                 semantic_score=result["semantic_score"],
@@ -238,12 +240,12 @@ def evaluate() -> EvaluationResponse:
 # Serve the frontend
 # ---------------------------------------------------------------------------
 
-# Mount the frontend directory at /app so index.html is served there.
 if FRONTEND_DIR.exists():
     app.mount("/app", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
 
+
 # ---------------------------------------------------------------------------
-# Local dev entry point (Render/Heroku-like platforms use PORT env var)
+# Local dev entry point
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":

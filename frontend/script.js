@@ -31,13 +31,11 @@ function labelClass(label) {
 }
 
 function scoreClass(value, kind) {
-    // value is on a 0-100 scale for both "exact" and "semantic"
     if (kind === "exact") {
         if (value >= 90) return "high";
         if (value >= 60) return "mid";
         return "low";
     }
-    // semantic (percentage)
     if (value >= 87) return "high";
     if (value >= 60) return "mid";
     return "low";
@@ -113,6 +111,7 @@ function renderComparisons(rows) {
                 <tr>
                     <td><strong>${escapeHtml(r.existing_id)}</strong></td>
                     <td>${escapeHtml(r.existing_question)}</td>
+                    <td><span class="tags-cell">${escapeHtml(r.tags || "")}</span></td>
                     <td><span class="label ${cls}">${escapeHtml(r.label)}</span></td>
                     <td><span class="score ${exactCls}">${r.exact_score.toFixed(2)}</span></td>
                     <td><span class="score ${semCls}">${r.semantic_score.toFixed(2)}%</span></td>
@@ -204,6 +203,7 @@ function renderEvaluationRows(rows) {
                 <tr>
                     <td><strong>${escapeHtml(r.comparison)}</strong></td>
                     <td>${escapeHtml(r.question)}</td>
+                    <td><span class="tags-cell">${escapeHtml(r.tags || "")}</span></td>
                     <td>${escapeHtml(r.expected)}</td>
                     <td><span class="label ${cls}">${escapeHtml(r.detector_says)}</span></td>
                     <td><span class="score ${semCls}">${r.semantic_score.toFixed(2)}%</span></td>
@@ -248,12 +248,10 @@ async function onCompare() {
             body: JSON.stringify({ question_a: qA, question_b: qB }),
         });
 
-        // Big verdict badge
         const labelEl = $("compareLabel");
         labelEl.className = `verdict-big ${data.label}`;
         labelEl.textContent = data.label.replaceAll("_", " ");
 
-        // Interpretation text
         const interp = $("compareInterpretation");
         if (data.label === "EXACT_DUPLICATE") {
             interp.textContent =
@@ -268,15 +266,12 @@ async function onCompare() {
                 "These two questions cover different concepts. They are not duplicates.";
         }
 
-        // Questions shown side by side
         $("compareQA").textContent = qA;
         $("compareQB").textContent = qB;
 
-        // Scores — both returned as 0-100 by the backend
         $("compareExact").textContent = data.exact_score.toFixed(2);
         $("compareSemantic").textContent = data.semantic_score.toFixed(2) + "%";
 
-        // Progress bars
         const exactPct = Math.min(data.exact_score, 100);
         const semPct = Math.min(data.semantic_score, 100);
 
