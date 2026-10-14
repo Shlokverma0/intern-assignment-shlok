@@ -1,94 +1,101 @@
 # AI Question Generation with Duplicate Prevention
 
-**Author:** Shlok Verma  
-**Assignment:** Intern Assignment — Question 2  
-**Repo:** [intern-assignment-shlok](https://github.com/Shlokverma0/intern-assignment-shlok)  
-**Live Demo:** [intern-assignment-shlok.onrender.com/app](https://intern-assignment-shlok.onrender.com/app/)
+**Author:** Shlok Verma
+**Assignment:** Intern Assignment, Question 2
+**GitHub:** https://github.com/Shlokverma0/intern-assignment-shlok
+
+---
+
+## Live Links
+
+| What | URL |
+|---|---|
+| **Frontend (Vercel)** | https://intern-assignment-shlok.vercel.app |
+| **Backend (Render)** | https://intern-assignment-shlok.onrender.com |
+| **API Docs (Swagger)** | https://intern-assignment-shlok.onrender.com/docs |
+| **Health Check** | https://intern-assignment-shlok.onrender.com/api/health |
+| **GitHub Repo** | https://github.com/Shlokverma0/intern-assignment-shlok |
+| **Demo Video** | ADD_YOUR_VIDEO_LINK_HERE |
+
+> **Note for reviewers:** The backend runs on Render's free tier. After 15 minutes of inactivity, the first request takes 30-60 seconds (cold start). Please open the [Health Check](https://intern-assignment-shlok.onrender.com/api/health) link first to wake the server, then use the frontend.
+
+### Try it in 30 seconds
+
+1. Open the [Health Check](https://intern-assignment-shlok.onrender.com/api/health) link and wait until it shows OK.
+2. Open the [Frontend](https://intern-assignment-shlok.vercel.app).
+3. **Generate** tab: enter a topic (for example, "reflection of light") and generate a question. It is verified against the corpus automatically.
+4. **Evaluate** tab: run the detector on Q1-Q10 and see precision, recall and F1.
+5. **Compare** tab: paste any two questions and see whether they are duplicates.
 
 ---
 
 ## Overview
 
-A full-stack system where an LLM generates new questions for a given topic, and a separate detector verifies that the generated questions don't duplicate anything already in the corpus.
+A full-stack system where an LLM generates new questions for a given topic, and a separate detector verifies that the generated question does not duplicate anything already in the corpus.
 
-The design uses **two independent layers**:
+There are two independent layers:
 
-1. **Generation-time avoidance** — the LLM is shown a diverse subset of existing questions and instructed to steer away from them.
-2. **Independent duplicate detection** — a separate, deterministic check classifies each generated question as an exact duplicate, a semantic duplicate, or genuinely new.
+1. **Generation-time avoidance:** the LLM is shown a diverse subset of existing questions and told to steer away from them.
+2. **Independent duplicate detection:** a separate, deterministic check classifies each question as an exact duplicate, a semantic duplicate, or genuinely new.
 
-Layer 2 exists because prevention is never 100% reliable. LLMs occasionally ignore instructions, especially under long contexts. So rather than trusting prevention alone, we verify.
-
----
-
-## Live Deployment
-
-The app is deployed on Render's free tier:
-
-- **Web UI:** https://intern-assignment-shlok.onrender.com/app/
-- **API docs (Swagger):** https://intern-assignment-shlok.onrender.com/docs
-- **Health check:** https://intern-assignment-shlok.onrender.com/api/health
-
-**Note:** the free tier spins down after 15 minutes of inactivity, so the first request may take 30-60 seconds while the container wakes up.
+Layer 2 exists because prevention is never 100% reliable. LLMs sometimes ignore instructions, so the output is verified instead of trusted.
 
 ---
 
 ## Architecture
 
-```
-┌──────────────────────────────┐
-│      Frontend (HTML/JS)      │
-│   Dark-themed single-page UI │
-│   Served at /app/            │
-└──────────────┬───────────────┘
-               │  HTTP/JSON
-               ▼
-┌──────────────────────────────┐
-│      FastAPI Backend         │
-│  /api/generate               │
-│  /api/detect                 │
-│  /api/evaluate               │
-│  /api/corpus                 │
-│  /api/health                 │
-└──────────────┬───────────────┘
-               │  Python calls
-               ▼
-┌──────────────────────────────┐
-│        src/ modules          │
-│  embeddings · detector ·     │
-│  generator                   │
-└──────────────────────────────┘
+```text
+Frontend (Vercel)
+  Dark-themed single-page UI
+  HTML / CSS / JavaScript
+        |
+        |  HTTP / JSON
+        v
+FastAPI Backend (Render)
+  /api/generate
+  /api/detect
+  /api/evaluate
+  /api/corpus
+  /api/health
+        |
+        |  Python calls
+        v
+src/ modules
+  embeddings . detector . generator
 ```
 
-The frontend and backend are cleanly separated. The frontend only talks to the backend over HTTP; the backend owns all domain logic. This mirrors a production-style split, where the UI can be replaced (mobile app, CLI, another web client) without touching the backend.
+Frontend and backend are cleanly separated. The frontend only talks to the backend over HTTP.
 
 ---
 
 ## Project Structure
 
-```
+```text
 intern-assignment-shlok/
 ├── backend/
 │   ├── __init__.py
-│   ├── main.py                # FastAPI app + endpoints
-│   └── schemas.py             # Pydantic request/response models
+│   ├── main.py            # FastAPI app + endpoints
+│   └── schemas.py         # Pydantic models
 ├── data/
-│   └── questions.csv          # Q1-Q10 test corpus with tags
+│   └── questions.csv      # Q1-Q10 test corpus with tags
 ├── frontend/
-│   ├── index.html             # UI markup
-│   ├── script.js              # UI logic + API calls
-│   └── style.css              # Dark theme styling
+│   ├── index.html
+│   ├── script.js
+│   ├── style.css
+│   └── vercel.json
 ├── src/
 │   ├── __init__.py
-│   ├── embeddings.py          # FastEmbed wrapper
-│   ├── detector.py            # Exact + semantic duplicate detection
-│   └── generator.py           # LLM question generation with avoidance
-├── evaluate.py                # CLI: run detector over Q1-Q10, print metrics
-├── test_generator.py          # CLI: end-to-end generate + verify
-├── render.yaml                # Render deployment config
+│   ├── embeddings.py      # FastEmbed wrapper
+│   ├── detector.py        # Exact + semantic detection
+│   └── generator.py       # LLM generation with avoidance
+├── evaluate.py            # CLI evaluation
+├── test_generator.py      # CLI end-to-end test
+├── render.yaml
 ├── requirements.txt
-├── .env                       # GROQ_API_KEY (not committed)
 └── .gitignore
 ```
+
+The `.env` file holds the API key locally and is excluded from the repo through `.gitignore`.
 
 ---
 
@@ -96,104 +103,82 @@ intern-assignment-shlok/
 
 ### Embeddings: FastEmbed with `BAAI/bge-small-en-v1.5`
 
-Alternatives considered:
-
 | Option | Why not chosen |
 |---|---|
-| OpenAI `text-embedding-3-small` | Better quality, but paid and requires internet per call |
-| `sentence-transformers` (`all-MiniLM-L6-v2`) | Good quality, but requires `torch` (~500MB RAM) |
-| Google Gemini embeddings | Free tier exists but rate limits are tight |
-| TF-IDF | Classical, but only catches word overlap, not meaning |
+| OpenAI embeddings | Paid, needs internet on every call |
+| sentence-transformers | Requires torch (~500MB RAM) |
+| Google Gemini | Tight rate limits |
+| TF-IDF | Only word overlap, not meaning |
 
-**The reason for choosing FastEmbed** is a real production constraint. The first deploy attempt on Render's free tier (512MB RAM) ran out of memory — `sentence-transformers` pulls in `torch` and its CUDA dependencies, which use roughly 500MB just to load the model.
+**Why FastEmbed:** The first deploy on Render's free tier (512MB RAM) ran out of memory. `sentence-transformers` pulls in torch + CUDA, which needs ~500MB just to load the model. FastEmbed uses the ONNX runtime instead and drops memory to ~200MB with comparable quality, so it fits the free tier.
 
-FastEmbed uses **ONNX runtime instead of torch**, so the memory footprint drops to around 200MB — comfortably within the free tier. Same model quality, different backend.
+### Two-layer detection
 
-### Two-layer duplicate detection
+- **Exact match alone** misses paraphrases.
+- **Semantic match alone** is threshold-sensitive and does not distinguish identical strings.
 
-Neither layer alone is reliable:
+Together they give a strong signal.
 
-- **Exact match alone** misses paraphrases ("What is reflection?" vs "Define reflection").
-- **Semantic match alone** gives no special treatment to literally identical questions and is threshold-sensitive.
+### Exact match: RapidFuzz
 
-Running both gives a strong signal: exact match first (high-confidence), then semantic match as a fallback.
-
-### Exact match: `rapidfuzz`
-
-A simple `q1 == q2` fails on casing and punctuation. `rapidfuzz` handles both, is C++-fast, and fuzzy-matches typos. Threshold of **90** was tuned against the corpus.
+Threshold: **90**. Handles casing, punctuation and small typos.
 
 ### Semantic match: cosine similarity
 
-Cosine similarity is the standard metric for comparing embeddings. Since embeddings are L2-normalized, it reduces to a dot product.
+Threshold: **0.87**. FastEmbed scores run higher than sentence-transformers, so the threshold was re-tuned on this corpus.
 
-**Threshold: 0.87**
-
-FastEmbed's similarity scores run higher than sentence-transformers, so the threshold was re-tuned after the migration. Empirically:
-
-| Threshold | Q1 vs Q5 (should be DIFFERENT) | Q1 vs Q2 (should be DUP) | Verdict |
+| Threshold | Q1 vs Q5 (different) | Q1 vs Q2 (duplicate) | Verdict |
 |---|---|---|---|
-| 0.80 | 0.84 → DUP ❌ | 0.95 → DUP ✅ | Too many false positives |
-| **0.87** | 0.84 → DIFF ✅ | 0.95 → DUP ✅ | **Best** |
-| 0.92 | 0.84 → DIFF ✅ | 0.95 → DUP ✅ | Misses the Q8 case |
+| 0.80 | 0.84, wrongly flagged as duplicate | 0.95, duplicate | Too many false positives (Q5, Q6) |
+| **0.87** | 0.84, different | 0.95, duplicate | **Best balance** |
+| 0.92 | 0.84, different | 0.95, duplicate | Misses true duplicate Q3 (0.908) |
 
-All similarity scores are returned as **percentages (0-100)** for consistency with the exact match score.
+All semantic scores are returned as **percentages (0-100)**.
 
-### Tags and metadata
+### Tags
 
-Each question in the corpus carries a `tags` field with key-value pairs (e.g. `topic:optics`, `difficulty:easy`, `type:definition`).
+Each question has a `tags` field with key-value pairs (for example `topic:optics`, `difficulty:easy`, `type:definition`).
 
-**Key design decision:** tags are deliberately excluded from duplicate detection. The detector compares questions purely on content — exact wording and semantic meaning — regardless of tags.
-
-This is intentional. Two questions with different tags can still be duplicates ("What is reflection?" vs "What is reflection of light?"), and two questions with identical tags can be completely different ("State the laws of reflection" vs "What is the angle of reflection?"). Tags are for organizational purposes only.
-
-New tag keys and values can be introduced at any time — no schema change is required, because tags are stored as a raw string field.
+**Tags are deliberately excluded from duplicate detection.** Detection is purely content-based: two questions with different tags can still be duplicates, and two with the same tags can be completely different. Tags are for organization only.
 
 ### Context selection: KMeans
 
-The LLM has a limited context window, so we send only a small, diverse set of existing questions. Random selection can pick near-duplicates. KMeans clusters embeddings and picks one representative per cluster, maximizing diversity.
+The LLM has a limited context window, and random selection can pick near-duplicates. KMeans clusters the embeddings and picks one question per cluster, which maximizes diversity in the prompt.
 
-### LLM: Groq with `openai/gpt-oss-120b`
+### LLM: Groq `openai/gpt-oss-120b`
 
-Groq's free tier is generous, its inference is very fast, and its API is OpenAI-compatible. The `llama-3.x` models were decommissioned during this project; `openai/gpt-oss-120b` is the current Groq-recommended replacement.
+Free tier, fast inference, OpenAI-compatible API. The `llama-3.x` models were decommissioned during the project.
 
 ---
 
 ## Running Locally
 
-### 1. Install dependencies
-
 ```bash
+git clone https://github.com/Shlokverma0/intern-assignment-shlok.git
+cd intern-assignment-shlok
+python -m venv venv
+venv\Scripts\activate          # Windows
+source venv/bin/activate       # macOS / Linux
 pip install -r requirements.txt
 ```
 
-### 2. Get a Groq API key
+Get a Groq API key from https://console.groq.com and add it to a `.env` file:
 
-Sign up at https://console.groq.com and create a free API key.
-
-### 3. Create `.env` in the project root
-
-```
+```text
 GROQ_API_KEY=your_key_here
 ```
 
-### 4. Start the FastAPI server
+Start the server:
 
 ```bash
 uvicorn backend.main:app --reload --port 8000
 ```
 
-### 5. Open the UI
+Open:
 
-- **Web UI:** http://localhost:8000/app/
-- **Interactive API docs (Swagger):** http://localhost:8000/docs
-- **Health check:** http://localhost:8000/api/health
-
-### Optional CLI scripts
-
-```bash
-python evaluate.py          # Detector metrics on Q1-Q10
-python test_generator.py    # End-to-end generate + verify
-```
+- Web UI: http://localhost:8000/app/
+- Swagger: http://localhost:8000/docs
+- Health: http://localhost:8000/api/health
 
 ---
 
@@ -202,17 +187,17 @@ python test_generator.py    # End-to-end generate + verify
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/health` | Health check |
-| GET | `/api/corpus` | Return the Q1-Q10 corpus with tags |
-| POST | `/api/generate` | Generate a new question and verify it against the corpus |
-| POST | `/api/detect` | Classify a pair of questions |
-| POST | `/api/evaluate` | Run detector on Q1 vs all and return metrics |
+| GET | `/api/corpus` | Q1-Q10 corpus with tags |
+| POST | `/api/generate` | Generate + verify a question |
+| POST | `/api/detect` | Classify a question pair |
+| POST | `/api/evaluate` | Metrics over Q1 vs all |
 
-Example request:
+### Example: detect
 
 ```bash
-curl -X POST http://localhost:8000/api/detect \
+curl -X POST https://intern-assignment-shlok.onrender.com/api/detect \
   -H "Content-Type: application/json" \
-  -d '{"question_a": "What is reflection of light?", "question_b": "Define reflection."}'
+  -d '{"question_a": "What is reflection of light?", "question_b": "Define the reflection of light."}'
 ```
 
 Response:
@@ -229,8 +214,6 @@ Response:
 
 ## Test Data
 
-The assignment provided 10 questions on "reflection of light":
-
 | ID | Question | Expected |
 |---|---|---|
 | Q1 | What is reflection of light? | Original |
@@ -239,7 +222,7 @@ The assignment provided 10 questions on "reflection of light":
 | Q4 | Explain the meaning of light reflection. | Semantic duplicate of Q1 |
 | Q5 | State the laws of reflection of light. | Different |
 | Q6 | What is the angle of reflection? | Different |
-| Q7 | The angle of incidence is 30°. What is the angle of reflection? | Different |
+| Q7 | The angle of incidence is 30 degrees. What is the angle of reflection? | Different |
 | Q8 | What is reflection? | Ambiguous |
 | Q9 | What is the difference between regular and diffuse reflection? | Different |
 | Q10 | Define the reflection of light. | Exact duplicate of Q2 |
@@ -250,20 +233,19 @@ The assignment provided 10 questions on "reflection of light":
 
 ### Detector evaluation (Q1 vs all)
 
-```
-Q1 vs Q2   | SEMANTIC_DUPLICATE   | exact= 73.68 | sem= 94.66%
-Q1 vs Q3   | SEMANTIC_DUPLICATE   | exact= 68.42 | sem= 90.80%
-Q1 vs Q4   | SEMANTIC_DUPLICATE   | exact= 48.48 | sem= 94.26%
-Q1 vs Q5   | DIFFERENT            | exact= 75.00 | sem= 83.89%
-Q1 vs Q6   | DIFFERENT            | exact= 62.07 | sem= 83.00%
-Q1 vs Q7   | DIFFERENT            | exact= 37.89 | sem= 73.19%
-Q1 vs Q8   | SEMANTIC_DUPLICATE   | exact= 80.00 | sem= 87.02%  (ambiguous)
-Q1 vs Q9   | DIFFERENT            | exact= 43.18 | sem= 75.78%
-Q1 vs Q10  | SEMANTIC_DUPLICATE   | exact= 73.68 | sem= 94.66%
-
-Q2 vs Q10  | EXACT_DUPLICATE      | exact=100.00 | sem=100.00%
-Q5 vs Q9   | DIFFERENT            | exact= 44.90 | sem= 69.09%
-```
+| Comparison | Question | Detector | Exact | Semantic |
+|---|---|---|---|---|
+| Q1 vs Q2 | Define the reflection of light. | SEMANTIC_DUPLICATE | 73.68 | 94.66% |
+| Q1 vs Q3 | What do you understand by the reflection of light? | SEMANTIC_DUPLICATE | 68.42 | 90.80% |
+| Q1 vs Q4 | Explain the meaning of light reflection. | SEMANTIC_DUPLICATE | 48.48 | 94.26% |
+| Q1 vs Q5 | State the laws of reflection of light. | DIFFERENT | 75.00 | 83.89% |
+| Q1 vs Q6 | What is the angle of reflection? | DIFFERENT | 62.07 | 83.00% |
+| Q1 vs Q7 | The angle of incidence is 30 degrees. What is the angle of reflection? | DIFFERENT | 37.89 | 73.19% |
+| Q1 vs Q8 | What is reflection? | SEMANTIC_DUPLICATE | 80.00 | 87.02% (ambiguous) |
+| Q1 vs Q9 | What is the difference between regular and diffuse reflection? | DIFFERENT | 43.18 | 75.78% |
+| Q1 vs Q10 | Define the reflection of light. | SEMANTIC_DUPLICATE | 73.68 | 94.66% |
+| Q2 vs Q10 | Define the reflection of light. | EXACT_DUPLICATE | 100.00 | 100.00% |
+| Q5 vs Q9 | What is the difference between regular and diffuse reflection? | DIFFERENT | 44.90 | 69.09% |
 
 ### Aggregate metrics (Q1 vs all, Q8 excluded as ambiguous)
 
@@ -273,86 +255,65 @@ Q5 vs Q9   | DIFFERENT            | exact= 44.90 | sem= 69.09%
 | False Positives | 0 |
 | False Negatives | 0 |
 | True Negatives | 4 |
-| **Precision** | **1.000** |
-| **Recall** | **1.000** |
-| **F1 Score** | **1.000** |
+| Precision | 1.000 |
+| Recall | 1.000 |
+| F1 Score | 1.000 |
 
 ### Generation test
 
-A typical run produces a question like:
+Example generated question:
 
-> *"How does a plane mirror produce a virtual image of an object, and what are the key characteristics of that image?"*
+> "How does a periscope use the principles of light reflection to enable an observer to see over an obstacle?"
 
-Verified against all 10 existing questions → all `DIFFERENT`, semantic scores in the 0.33-0.55 range. The avoidance mechanism worked.
+It was verified against all 10 existing questions. All came back DIFFERENT, with semantic scores between 63% and 80%, so the avoidance worked.
 
 ---
 
 ## UI
 
-The frontend is a single-page application (no build step, no framework) with three tabs:
+A single-page application with three tabs:
 
-- **Generate** — enter a topic, generate a question, see it verified against the corpus
-- **Evaluate** — run the detector on Q1-Q10 and view metrics
-- **Compare** — sanity check two custom questions side-by-side
+- **Generate:** enter a topic, generate a question, verify it against the corpus.
+- **Evaluate:** run the detector on Q1-Q10 and view the metrics.
+- **Compare:** sanity-check two questions side by side.
 
-It talks to the FastAPI backend exclusively over HTTP and updates the UI without a page reload.
+No build step and no framework. Plain HTML/CSS/JS talking to FastAPI over HTTP.
 
 ---
 
 ## Trade-offs and Limitations
 
-### 1. Topic drift in generation
-
-Under a loose prompt, the LLM occasionally drifts from the strict topic. In one run, "reflection of light" produced a question about plane mirrors. Both are optics, but the drift is real.
-
-This is the classic **precision-vs-diversity trade-off**:
-
-- A stricter prompt → less drift, but repetitive questions over time.
-- A looser prompt → more diversity, but the question may stray.
-
-A post-generation topic classifier or a stricter few-shot prompt would tighten this. Not implemented here.
-
-### 2. Q8 is genuinely ambiguous
-
-"What is reflection?" could refer to optical reflection or reflection in general. The model classified it as a semantic duplicate of Q1 with score 87.02%. This is defensible, but the assignment explicitly flagged it as ambiguous, so Q8 is excluded from metrics.
-
-### 3. Small evaluation set
-
-The metrics are computed on 10 questions. Real deployments have hundreds or thousands. The pipeline scales (embeddings are O(n); each new detection is O(n) per question), but proper benchmarking would require a larger corpus.
-
-### 4. Threshold tuning
-
-The 0.87 semantic threshold was tuned on this specific corpus with FastEmbed. A different embedding model or domain would need re-tuning. A production system would re-tune periodically or use an adaptive approach.
-
-### 5. Deployment memory constraint
-
-The switch to FastEmbed was forced by a real constraint — Render's 512MB free tier. In a paid environment with more memory, `sentence-transformers` would remain a valid choice and would only require re-tuning the semantic threshold back to ~0.80.
+1. **Topic drift.** A loose prompt sometimes drifts: "reflection of light" once produced a "plane mirrors" question. Both are optics, but the drift is real. It is a classic precision-vs-diversity trade-off: a strict prompt gives less drift but repetitive questions, a loose prompt gives variety but may stray. A post-generation topic classifier would fix this and is not implemented.
+2. **Q8 is ambiguous.** "What is reflection?" could mean optical reflection or reflection in general. It is classified as a semantic duplicate (87.02%) and excluded from the metrics, as the assignment notes.
+3. **Small evaluation set.** Only 10 questions. Real deployments have hundreds. The pipeline scales (O(n) per detection), but proper benchmarking needs a larger corpus.
+4. **Threshold tuning.** 0.87 was tuned for this corpus and FastEmbed. A different domain may need re-tuning.
+5. **Deployment memory.** The switch to FastEmbed was forced by Render's 512MB limit. A paid tier with more RAM would allow sentence-transformers again (threshold around 0.80).
 
 ---
 
 ## What I'd Add With More Time
 
 - Vector database (FAISS) for fast approximate search at scale
-- Few-shot prompt engineering to reduce topic drift
-- A larger evaluation set pulled from real question banks
-- A topic-adherence classifier to flag drift
-- Caching corpus embeddings to disk so cold starts are instant
-- Dockerfile for one-command deployment
-- CI to run the evaluation on every commit
+- Few-shot prompts to reduce topic drift
+- A larger evaluation set from real question banks
+- A topic-adherence classifier
+- Disk caching for corpus embeddings
+- A Dockerfile
+- CI on every commit
 
 ---
 
-## Stack
+## Tech Stack
 
-- **Python 3.11** (deployed on Render) / **3.14** (local dev)
-- `fastapi`, `uvicorn`, `pydantic` — backend API
-- `fastembed` — embeddings (ONNX runtime, no torch)
-- `scikit-learn` — KMeans clustering, metrics
-- `rapidfuzz` — fuzzy string matching
-- `groq` — LLM API client
-- `pandas`, `numpy` — data handling
-- Vanilla **HTML / CSS / JavaScript** — frontend (no framework, no build step)
-- **Render** — deployment platform
+| Layer | Tools |
+|---|---|
+| Backend | FastAPI, Uvicorn, Pydantic |
+| Embeddings | FastEmbed (ONNX, no torch) |
+| ML | scikit-learn, NumPy, pandas |
+| Similarity | RapidFuzz, cosine similarity |
+| LLM | Groq (`openai/gpt-oss-120b`) |
+| Frontend | HTML, CSS, JavaScript |
+| Deploy | Vercel (frontend), Render (backend) |
 
 ---
 
