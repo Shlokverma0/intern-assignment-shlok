@@ -15,7 +15,7 @@
 | **API Docs (Swagger)** | https://intern-assignment-shlok.onrender.com/docs |
 | **Health Check** | https://intern-assignment-shlok.onrender.com/api/health |
 | **GitHub Repo** | https://github.com/Shlokverma0/intern-assignment-shlok |
-| **Demo Video** | ADD_YOUR_VIDEO_LINK_HERE |
+| **Demo Video** | https://drive.google.com/file/d/1tu0SSqPcg2vSuu0VtrASY_9QLO5oEFY2/view?usp=sharing |
 
 > **Note for reviewers:** The backend runs on Render's free tier. After 15 minutes of inactivity, the first request takes 30-60 seconds (cold start). Please open the [Health Check](https://intern-assignment-shlok.onrender.com/api/health) link first to wake the server, then use the frontend.
 
