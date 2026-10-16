@@ -17,13 +17,13 @@
 | **GitHub Repo** | https://github.com/Shlokverma0/intern-assignment-shlok |
 | **Demo Video** | https://drive.google.com/file/d/1tu0SSqPcg2vSuu0VtrASY_9QLO5oEFY2/view?usp=sharing |
 
-> **Note for reviewers:** The backend runs on Render's free tier. After 15 minutes of inactivity, the first request takes 30-60 seconds (cold start). Please open the [Health Check](https://intern-assignment-shlok.onrender.com/api/health) link first to wake the server, then use the frontend.
+> **Note for reviewers:** The backend runs on Render's free tier. After 15 minutes of inactivity, the first request may take 30-60 seconds (cold start). Please open the [Health Check](https://intern-assignment-shlok.onrender.com/api/health) link first to wake the server, then use the frontend. An external uptime monitor pings the health endpoint every 10 minutes to keep the backend warm.
 
-### Try it in 30 seconds
+### Try It in 30 Seconds
 
-1. Open the [Health Check](https://intern-assignment-shlok.onrender.com/api/health) link and wait until it shows OK.
+1. Open the [Health Check](https://intern-assignment-shlok.onrender.com/api/health) link and wait until it responds OK.
 2. Open the [Frontend](https://intern-assignment-shlok.vercel.app).
-3. **Generate** tab: enter a topic (for example, "reflection of light") and generate a question. It is verified against the corpus automatically.
+3. **Generate** tab: enter a topic (for example "reflection of light") and generate a question. It is verified against the corpus automatically.
 4. **Evaluate** tab: run the detector on Q1-Q10 and see precision, recall and F1.
 5. **Compare** tab: paste any two questions and see whether they are duplicates.
 
@@ -64,7 +64,7 @@ src/ modules
   embeddings . detector . generator
 ```
 
-Frontend and backend are cleanly separated. The frontend only talks to the backend over HTTP.
+Frontend and backend are cleanly separated. The frontend only talks to the backend over HTTP, so the UI can be replaced (mobile app, CLI, another web client) without touching the backend.
 
 ---
 
@@ -110,20 +110,20 @@ The `.env` file holds the API key locally and is excluded from the repo through 
 | Google Gemini | Tight rate limits |
 | TF-IDF | Only word overlap, not meaning |
 
-**Why FastEmbed:** The first deploy on Render's free tier (512MB RAM) ran out of memory. `sentence-transformers` pulls in torch + CUDA, which needs ~500MB just to load the model. FastEmbed uses the ONNX runtime instead and drops memory to ~200MB with comparable quality, so it fits the free tier.
+**Why FastEmbed:** The first deploy on Render's free tier (512MB RAM) ran out of memory. `sentence-transformers` pulls in torch and needs ~500MB just to load the model. FastEmbed uses the ONNX runtime instead and drops memory to roughly 200MB with comparable quality, so it fits the free tier.
 
-### Two-layer detection
+### Two-Layer Detection
 
 - **Exact match alone** misses paraphrases.
 - **Semantic match alone** is threshold-sensitive and does not distinguish identical strings.
 
 Together they give a strong signal.
 
-### Exact match: RapidFuzz
+### Exact Match: RapidFuzz
 
 Threshold: **90**. Handles casing, punctuation and small typos.
 
-### Semantic match: cosine similarity
+### Semantic Match: Cosine Similarity
 
 Threshold: **0.87**. FastEmbed scores run higher than sentence-transformers, so the threshold was re-tuned on this corpus.
 
@@ -141,13 +141,85 @@ Each question has a `tags` field with key-value pairs (for example `topic:optics
 
 **Tags are deliberately excluded from duplicate detection.** Detection is purely content-based: two questions with different tags can still be duplicates, and two with the same tags can be completely different. Tags are for organization only.
 
-### Context selection: KMeans
+New tag keys and values can be introduced at any time. No schema change is required, because tags are stored as a raw string field.
+
+### Context Selection: KMeans
 
 The LLM has a limited context window, and random selection can pick near-duplicates. KMeans clusters the embeddings and picks one question per cluster, which maximizes diversity in the prompt.
 
 ### LLM: Groq `openai/gpt-oss-120b`
 
 Free tier, fast inference, OpenAI-compatible API. The `llama-3.x` models were decommissioned during the project.
+
+---
+
+## Scalability
+
+How the design behaves as the question collection grows. The figures below are estimates from the algorithmic cost, not benchmarked at that scale.
+
+### Current approach (up to roughly 10,000 questions)
+
+| Step | Cost |
+|---|---|
+| Corpus embeddings | Computed once at startup, cached in memory |
+| New question embedding | O(1), a single FastEmbed call |
+| Exact match (RapidFuzz) | O(n) per new question |
+| Semantic match (cosine) | O(n) per new question, one dot product per pair |
+
+At around 1,000 questions, a single detection is expected to stay well under 100ms on CPU. At around 10,000 questions it grows to roughly a second per new question, which is acceptable for this use case.
+
+### Scaling beyond 10,000 questions
+
+1. **Linear search in the semantic detector.** Replace the brute-force dot product with an approximate nearest-neighbor index (FAISS IVF, HNSW or a hosted vector database). This reduces lookup cost from O(n) to roughly O(log n).
+2. **Context window in the generator.** The KMeans cluster count stays fixed (k=5), so the LLM prompt does not grow with the corpus. This scales without changes.
+
+### Memory footprint
+
+- FastEmbed model: about 50MB on disk, about 200MB loaded in RAM.
+- Corpus embeddings: 384 floats x 4 bytes = about 1.5KB per question, so about 15MB at 10,000 questions.
+- For 100,000+ questions, embeddings should move to a vector database instead of RAM.
+
+### Cost per request
+
+- LLM call (Groq): free tier, about 1-2 seconds per generation.
+- Embedding and detection: no external API calls, everything runs locally.
+
+---
+
+## Performance
+
+### Approximate latency (measured locally)
+
+| Operation | Latency |
+|---|---|
+| `GET /api/health` | under 50ms |
+| `GET /api/corpus` | under 100ms |
+| `POST /api/detect` | 200-400ms (2 embeddings + 1 dot product) |
+| `POST /api/evaluate` | 500-800ms (10 comparisons) |
+| `POST /api/generate` | 2-4s (includes the LLM call) |
+
+Cold starts on Render's free tier add 30-60s to the first request after idle time. The uptime monitor keeps this rare.
+
+### Memory
+
+- Backend process: about 250-300MB when running, within Render's 512MB free tier.
+- The sentence-transformers alternative exceeded 512MB during model load and was replaced by FastEmbed.
+
+### Accuracy
+
+| Metric | Value |
+|---|---|
+| Precision | 1.000 |
+| Recall | 1.000 |
+| F1 | 1.000 |
+
+These are on the 10-question test set with Q8 excluded as ambiguous. A larger benchmark is needed for production-grade confidence.
+
+### How these were measured
+
+- **Accuracy:** `python evaluate.py` over the provided Q1-Q10 corpus.
+- **Latency:** repeated calls to each endpoint on a local machine.
+- **Memory:** process monitoring locally and the Render dashboard.
 
 ---
 
@@ -180,6 +252,13 @@ Open:
 - Swagger: http://localhost:8000/docs
 - Health: http://localhost:8000/api/health
 
+Optional CLI scripts:
+
+```bash
+python evaluate.py          # Detector metrics on Q1-Q10
+python test_generator.py    # End-to-end generate + verify
+```
+
 ---
 
 ## API Endpoints
@@ -188,7 +267,7 @@ Open:
 |---|---|---|
 | GET | `/api/health` | Health check |
 | GET | `/api/corpus` | Q1-Q10 corpus with tags |
-| POST | `/api/generate` | Generate + verify a question |
+| POST | `/api/generate` | Generate and verify a question |
 | POST | `/api/detect` | Classify a question pair |
 | POST | `/api/evaluate` | Metrics over Q1 vs all |
 
@@ -247,6 +326,8 @@ Response:
 | Q2 vs Q10 | Define the reflection of light. | EXACT_DUPLICATE | 100.00 | 100.00% |
 | Q5 vs Q9 | What is the difference between regular and diffuse reflection? | DIFFERENT | 44.90 | 69.09% |
 
+Q8 is classified as SEMANTIC_DUPLICATE at 87.02%. The assignment marks it as potentially ambiguous, so it is excluded from the aggregate metrics but kept in the table above for transparency.
+
 ### Aggregate metrics (Q1 vs all, Q8 excluded as ambiguous)
 
 | Metric | Value |
@@ -277,17 +358,18 @@ A single-page application with three tabs:
 - **Evaluate:** run the detector on Q1-Q10 and view the metrics.
 - **Compare:** sanity-check two questions side by side.
 
-No build step and no framework. Plain HTML/CSS/JS talking to FastAPI over HTTP.
+No build step and no framework. Plain HTML, CSS and JavaScript talking to FastAPI over HTTP.
 
 ---
 
 ## Trade-offs and Limitations
 
-1. **Topic drift.** A loose prompt sometimes drifts: "reflection of light" once produced a "plane mirrors" question. Both are optics, but the drift is real. It is a classic precision-vs-diversity trade-off: a strict prompt gives less drift but repetitive questions, a loose prompt gives variety but may stray. A post-generation topic classifier would fix this and is not implemented.
+1. **Topic drift.** A loose prompt sometimes drifts: "reflection of light" once produced a "plane mirrors" question. Both are optics, but the drift is real. It is a precision-vs-diversity trade-off: a strict prompt gives less drift but repetitive questions; a loose prompt gives variety but may stray. A post-generation topic classifier would fix this and is not implemented.
 2. **Q8 is ambiguous.** "What is reflection?" could mean optical reflection or reflection in general. It is classified as a semantic duplicate (87.02%) and excluded from the metrics, as the assignment notes.
-3. **Small evaluation set.** Only 10 questions. Real deployments have hundreds. The pipeline scales (O(n) per detection), but proper benchmarking needs a larger corpus.
+3. **Small evaluation set.** Only 10 questions on one topic, so the results are indicative, not conclusive. The pipeline scales (O(n) per detection), but proper benchmarking needs a larger corpus.
 4. **Threshold tuning.** 0.87 was tuned for this corpus and FastEmbed. A different domain may need re-tuning.
 5. **Deployment memory.** The switch to FastEmbed was forced by Render's 512MB limit. A paid tier with more RAM would allow sentence-transformers again (threshold around 0.80).
+6. **English only.** The embedding model is English; multilingual questions are not evaluated.
 
 ---
 
